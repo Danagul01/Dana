@@ -1,28 +1,30 @@
 import gradio as gr
 from transformers import pipeline
+import torch
 
-# Загружаем готовую модель для классификации изображений
-classifier = pipeline("image-classification", model="google/vit-base-patch16-224")
+# Ограничиваем использование CPU, чтобы не съедать всю память
+torch.set_num_threads(1)
 
-# Функция обработки изображения
-def predict(image):
-    results = classifier(image)
-    # Берём топ-1 результат
-    top_result = results[0]
-    label = top_result["label"]
-    score = round(top_result["score"] * 100, 2)
-    return f"Предсказание: {label} ({score}%)"
+# Инициализируем модель только при первом запросе
+classifier = None
 
-# Интерфейс Gradio
-app = gr.Interface(
-    fn=predict,
-    inputs=gr.Image(type="pil", label="Загрузите фото одежды"),
-    outputs=gr.Textbox(label="Результат"),
-    title="🛍️ Классификатор одежды",
-    description="Загрузите изображение одежды, чтобы узнать, что это за вещь"
+def classify_text(text):
+    global classifier
+    if classifier is None:
+        # Маленькая модель, экономит память
+        classifier = pipeline("sentiment-analysis", model="distilbert-base-uncased")
+    result = classifier(text)[0]
+    return f"Label: {result['label']}, Score: {result['score']:.2f}"
+
+# Gradio интерфейс
+demo = gr.Interface(
+    fn=classify_text,
+    inputs=gr.Textbox(lines=2, placeholder="Введите текст..."),
+    outputs="text",
+    title="Text Classifier",
+    description="Лёгкая версия модели для Render Free Tier"
 )
 
 if __name__ == "__main__":
-    app.launch()
-if __name__ == "__main__":
+    # Важно для Render Free Tier
     demo.launch(server_name="0.0.0.0", server_port=10000)
